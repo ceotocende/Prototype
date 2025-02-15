@@ -1,4 +1,4 @@
-import { Sequelize, DataTypes, Model } from 'sequelize';
+import { Sequelize, DataTypes, Model, Optional } from 'sequelize';
 
 interface ITickets {
     ticket_id: number;
@@ -7,7 +7,10 @@ interface ITickets {
     message_id: number;
 }
 
-export class Tickets extends Model<ITickets> {
+interface TicketsAttributes extends Optional<ITickets, 'ticket_id'> {};
+
+
+export class Tickets extends Model<ITickets, TicketsAttributes> {
     public ticket_id!: number;
     public user_id!: string;
     public status!: boolean | true;
