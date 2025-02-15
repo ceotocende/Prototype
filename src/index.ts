@@ -3,11 +3,12 @@ import * as dotenv from "dotenv";
 import sequelize, { syncDataBase } from './database/dbsync';
 import { initUsersModel, Users } from './database/Models/Users';
 import { Tickets } from './database/Models/Tickets';
+import { Messages } from './database/Models/Messages';
 // import { FAQ } from './database/Models/FAQ';
 dotenv.config();
 sequelize;
-const a = (async () => {
-    console.log('asdfasdf')
+
+(async () => {
     await syncDataBase();
 })();
 
@@ -111,10 +112,33 @@ bot.on('callback_query', async interaction => {
     } else if (data === "button_tech_spec_support") {
         const message = bot.sendMessage(chatId, 'Хорошо, опишите свою проблему, ответом на сообщение');
 
+        const ticketsDb = await Tickets.findOne({ where: { user_id: chatId, message_id_answer: (await message).message_id, ticket_id: parseInt(`${(await message).message_id}${chatId}`) } })
+
+        if (!ticketsDb) {
+            Tickets.create({
+                user_id: chatId,
+                message_id_answer: (await message).message_id,
+                message_id_reply: 0,
+                status: true,
+                ticket_id: parseInt(`${(await message).message_id}${chatId}`),
+                moderator: 0
+            })
+        }
         messageSupportId.set((await message).message_id, interaction.message?.chat.id);
     } else if (data?.replace(/[^a-zA-Z]/g, "") === 'buttonReplySupport') {
-        const message = bot.sendMessage(chatId, 'Хорошо, ответье в ответ на сообщение');
-        messageSupportId.set((await message).message_id, (await message).chat.id);
+        const message = bot.sendMessage(chatId, 'Хорошо, ответьте в ответ на сообщение');
+        console.log(data.replace(/\D/g, "") )
+        const ticketsDb = await Tickets.findOne({ where: { ticket_id: data.replace(/\D/g, "") } });
+        console.log(ticketsDb, !ticketsDb)
+        if (!ticketsDb) {
+            bot.sendMessage(chatId, 'Произошла ошибка с запросом бд')
+        } else {
+            Tickets.update({
+                moderator: chatId
+            }, { where: { ticket_id: data.replace(/\D/g, "") }})
+            messageSupportId.set((await message).message_id, ticketsDb.user_id);
+        }
+
     } else if (data?.replace(/[^a-zA-Z]/g, "") === 'buttonDeclineReply') {
         bot.sendMessage(chatId, 'Хорошо, отменяю запрос');
         try {
@@ -147,23 +171,18 @@ bot.on('callback_query', async interaction => {
             const ticketsDb = await Tickets.findAll({ where: { user_id: chatId }, limit: 25 })
 
             if (ticketsDb.length > 0) {
-                // Формируем сообщение
                 let message = 'Ваши тикеты:\n\n';
                 ticketsDb.forEach((ticket, index) => {
                     message += `${index + 1}\n ID: ${ticket.ticket_id}\n Статус: ${ticket.status === true ? 'В работе' : 'Закрыт'}\n`;
                 });
 
-                // Отправляем сообщение
                 bot.sendMessage(chatId, message);
             } else {
-                // Если записей нет
                 bot.sendMessage(chatId, 'У вас нет тикетов.');
             }
         } catch { }
     }
 })
-
-//чел выбирает с чем нужна ему помощь и его сразу переводят на оператора.
 
 //#region reuest message
 
@@ -173,6 +192,9 @@ bot.on('text', async msg => {
     }; 
     if (msg.reply_to_message.text === 'Хорошо, опишите свою проблему, ответом на сообщение') {
         try {
+            Tickets.update({
+                ticket_id: parseInt(`${msg.message_id}${msg.chat.id}`)
+            }, { where: { user_id:msg.chat.id } })
             bot.sendMessage(1911604621, `Новый запрос о помощи\nПользователь: *${msg.from?.first_name}*\nТекст запроса:\n\`\`\` ${msg.text} \`\`\`\nId сообщения: ${msg.message_id}${msg.chat.id}`,
                 {
                     parse_mode: 'MarkdownV2',
@@ -216,21 +238,21 @@ bot.on('text', async msg => {
 
             if (!addTicketsSupport) {
                 if (parseIntDb() === 0) {
-                    Tickets.create({
-                        ticket_id: 0,
-                        user_id: 0,
-                        status: true,
-                        message_id: 0
-                    })
+                    // Tickets.create({
+                    //     ticket_id: 0,
+                    //     user_id: 0,
+                    //     status: true,
+                    //     message_id: 0
+                    // })
                     bot.sendMessage(msg.chat.id, 'Произошла ошибка')
                 } else {
                     if ((await Tickets.findAll({ where: { user_id: parseIntDb() } })).length <= 25) {
-                        Tickets.create({
+                        await Tickets.update({
                             ticket_id: parseIntDb(),
                             status: true,
                             user_id: msg.chat.id,
-                            message_id: msg.message_id
-                        })
+                            message_id_reply: msg.message_id
+                        }, { where: { user_id: msg.chat.id } }).then(res => console.log(res)).catch(err => console.error(err))
                         bot.sendMessage(msg.chat.id, `Я направил ваше обращение в чат поддержки, пожалуйста ожидайте ответа. Если вам не ответят через день проверьте статус завки в /menu\nВаш номер заявки ${msg.message_id}${msg.chat.id}`)
                     } else {
                         bot.sendMessage(msg.chat.id, 'У вас больше 25 запросов, дождись ответов по текущим вопросом или закройте их сами.')
@@ -240,8 +262,16 @@ bot.on('text', async msg => {
         } catch (err) {
             console.error(err);
         }
-    } else if (msg.reply_to_message.text === 'Хорошо, ответье в ответ на сообщение') {
-        bot.sendMessage(messageSupportId.get(msg.reply_to_message!.message_id), `Вам пришел ответ ${msg.text}`)
+    } else if (msg.reply_to_message.text === 'Хорошо, ответьте в ответ на сообщение') {
+        const ticketsDb = await Tickets.findOne({ where: { user_id: messageSupportId.get(msg.reply_to_message!.message_id), moderator: msg.chat.id } })
+
+        console.log(msg.chat.id, messageSupportId.get(msg.reply_to_message!.message_id))
+        
+        if (!ticketsDb) {
+            bot.sendMessage(msg.chat.id, 'Ошибочка')
+        } else {
+            bot.sendMessage(ticketsDb?.user_id, `Вам пришел ответ ${msg.text}`)
+        }
     }
 })
 

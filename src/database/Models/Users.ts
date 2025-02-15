@@ -25,4 +25,5 @@ export const initUsersModel = (sequelize: Sequelize) => {
     modelName: 'users',
     timestamps: false
   });
+      console.log(`Таблица ${Users.tableName} зарегистрирована`);
 };

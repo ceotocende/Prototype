@@ -33,4 +33,5 @@ export const initFAQModel = (sequelize: Sequelize) => {
     modelName: 'faqs',
     timestamps: false
   });
+      console.log(`Таблица ${FAQ.tableName} зарегистрирована`);
 };
