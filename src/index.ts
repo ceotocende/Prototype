@@ -5,7 +5,6 @@ import { initUsersModel, Users } from './database/Models/Users';
 import { Tickets } from './database/Models/Tickets';
 import { Messages } from './database/Models/Messages';
 import { SupportsAdmins } from './database/Models/SupportAdmin';
-// import { FAQ } from './database/Models/FAQ';
 dotenv.config();
 sequelize;
 
@@ -35,7 +34,7 @@ bot.setMyCommands([ // установка команд
 ])
 
 //#region commands
-
+//стартовая команда бота
 bot.onText(/\/start/, async msg => {
     await bot.sendMessage(msg.chat.id, `Привет, я бот поддержки.\nНажмите кнопку снизу если вам нужна помощь.`, {
         reply_markup: {
@@ -289,7 +288,7 @@ bot.on('text', async msg => {
             if (!ticketsDb) {
                 bot.sendMessage(msg.chat.id, 'Ошибочка')
             } else {
-                bot.sendMessage(ticketsDb?.user_id, `Вам пришел ответ ${msg.text}`)
+                bot.sendMessage(ticketsDb?.user_id, `Вам пришел ответ по заявке <pre>  ${messageSupportId.get(msg.reply_to_message!.message_id)} </pre> Текст ответа <pre> ${msg.text} </pre>`, { parse_mode: 'HTML' })
             }
         } catch (err) {
             bot.sendMessage(msg.chat.id, 'Произошла ошибка');
